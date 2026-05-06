@@ -5,12 +5,10 @@ import { Button } from '@/components/retroui/Button';
 export default function LandingPage() {
 	return (
 		<div className="relative min-h-screen bg-[#f8f8f8] text-black font-sans">
-			{/* Background Grid */}
 			<div className="fixed inset-0 z-0 pointer-events-none bg-[linear-gradient(to_right,#0000001a_1px,transparent_1px),linear-gradient(to_bottom,#0000001a_1px,transparent_1px)] bg-[size:32px_32px]"></div>
 
 			<div className="relative z-10 flex flex-col min-h-screen">
-				{/* NAVBAR */}
-				<nav className="sticky top-0 w-full bg-white border-b-4 border-black px-6 py-4 flex items-center justify-between z-50">
+				<nav className="sticky top-0 w-full bg-white border-b-4 border-black px-6 py-4 flex items-center justify-between z-999">
 					<div className="flex items-center gap-2">
 						<div className="w-6 h-6 bg-[#ffc900] border-2 border-black shadow-[2px_2px_0px_0px_#000]"></div>
 						<span className="font-head text-2xl uppercase tracking-tighter">RetroUI</span>
@@ -32,7 +30,6 @@ export default function LandingPage() {
 					<Button className="bg-black text-white border-2 border-black shadow-sm font-bold">GITHUB</Button>
 				</nav>
 
-				{/* HERO SECTION */}
 				<main className="flex-1 flex flex-col items-center px-4 pt-24 pb-12 text-center max-w-6xl mx-auto">
 					<div className="mb-8 inline-flex items-center gap-2 bg-[#ff90e8] border-2 border-black px-4 py-1.5 shadow-[4px_4px_0px_0px_#000] rotate-[-2deg]">
 						<span className="font-bold text-sm uppercase tracking-wide">Multiplayer UDP Game</span>
@@ -46,21 +43,13 @@ export default function LandingPage() {
 					</h1>
 
 					<p className="font-medium text-lg md:text-xl max-w-2xl text-neutral-800 mb-10">
-						Hancurkan serangan siber dengan kecepatan mengetikmu. Arsitektur 3-tier dengan relay UDP ke
-						WebSocket secara real-time.
+						Destroy cyber attacks with your typing speed. A 3-tier architecture with real-time
+						UDP-to-WebSocket relay.
 					</p>
 
-					{/* DEFENSE ZONE COMPONENT (DI DALAM KOTAK) */}
 					<DefenseZone />
-
-					<div className="flex flex-col sm:flex-row gap-5 mt-10">
-						<Button className="text-lg px-8 py-6 bg-[#ffc900] text-black border-4 border-black shadow-lg font-head uppercase tracking-wider transition-all active:translate-x-[4px] active:translate-y-[4px] active:shadow-none">
-							Play Game
-						</Button>
-					</div>
 				</main>
 
-				{/* FOOTER */}
 				<footer className="bg-white border-t-4 border-black px-6 py-12 mt-20">
 					<div className="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
 						<div className="flex items-center gap-2">
@@ -69,9 +58,7 @@ export default function LandingPage() {
 								Socket Programming Project
 							</span>
 						</div>
-						<div className="font-bold text-sm uppercase text-neutral-400">
-							Based on UDP Protocol[cite: 1]
-						</div>
+						<div className="font-bold text-sm uppercase text-neutral-400">Based on UDP Protocol</div>
 					</div>
 				</footer>
 			</div>

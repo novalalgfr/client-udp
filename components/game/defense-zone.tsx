@@ -7,115 +7,237 @@ interface FallingWord {
 	text: string;
 	x: number;
 	y: number;
+	highlighted?: boolean;
 }
+
+const WORD_LIST = [
+	'attack',
+	'defense',
+	'shield',
+	'system',
+	'network',
+	'packet',
+	'server',
+	'client',
+	'protocol',
+	'latency',
+	'socket',
+	'signal',
+	'router',
+	'gateway',
+	'firewall',
+	'encrypt',
+	'decrypt',
+	'access',
+	'control',
+	'process',
+	'thread',
+	'buffer',
+	'memory',
+	'kernel',
+	'runtime',
+	'compile',
+	'execute',
+	'deploy',
+	'monitor',
+	'status',
+	'request',
+	'response',
+	'connect',
+	'disconnect',
+	'timeout',
+	'secure',
+	'threat',
+	'breach',
+	'alert',
+	'warning',
+	'critical',
+	'failure',
+	'backup',
+	'restore',
+	'sync',
+	'async',
+	'stream',
+	'queue',
+	'relay',
+	'cluster'
+];
 
 export function DefenseZone() {
 	const [words, setWords] = useState<FallingWord[]>([]);
 	const [userInput, setUserInput] = useState('');
 	const [score, setScore] = useState(0);
-	const [status, setStatus] = useState<'connected' | 'disconnected'>('disconnected');
-	// State baru untuk status permainan
-	const [gameState, setGameState] = useState<'playing' | 'gameover'>('playing');
+	const [username, setUsername] = useState('');
+	const [usernameInput, setUsernameInput] = useState('');
+	const [status, setStatus] = useState<'connected' | 'disconnected' | 'connecting'>('connecting');
+	const [gameState, setGameState] = useState<'win' | 'idle' | 'playing' | 'paused' | 'gameover'>('idle');
+	const [invalidFlash, setInvalidFlash] = useState(false);
 
 	const socketRef = useRef<WebSocket | null>(null);
+	const wsReadyRef = useRef(false);
+	const inputRef = useRef<HTMLInputElement>(null);
 
 	useEffect(() => {
-		// Jangan jalankan koneksi/loop jika game over
-		if (gameState === 'gameover') return;
+		const connect = () => {
+			setStatus('connecting');
+			const ws = new WebSocket('ws://localhost:8000');
+			socketRef.current = ws;
 
-		// 1. Inisialisasi Koneksi WebSocket ke Server Python
-		socketRef.current = new WebSocket('ws://localhost:8000');
+			ws.onopen = () => {
+				setStatus('connected');
+				wsReadyRef.current = true;
+			};
 
-		socketRef.current.onopen = () => setStatus('connected');
-		socketRef.current.onclose = () => setStatus('disconnected');
+			ws.onclose = () => {
+				setStatus('disconnected');
+				wsReadyRef.current = false;
+				setTimeout(connect, 3000);
+			};
 
-		socketRef.current.onmessage = (event) => {
-			const data = JSON.parse(event.data);
-			// Validasi tipe pesan dari server
-			if (data.type === 'WORD_DESTROYED') {
-				destroyWord(data.word);
-			}
+			ws.onerror = () => {
+				setStatus('disconnected');
+				wsReadyRef.current = false;
+			};
+
+			ws.onmessage = (event) => {
+				try {
+					const data = JSON.parse(event.data);
+
+					if (data.type === 'WORD_VALID') {
+						setWords((prev) => {
+							const exists = prev.some((w) => w.text === data.word);
+							if (exists) {
+								setScore((s) => s + 100);
+								return prev.filter((w) => w.text !== data.word);
+							}
+							return prev;
+						});
+					}
+
+					if (data.type === 'WORD_INVALID') {
+						setInvalidFlash(true);
+						setTimeout(() => setInvalidFlash(false), 400);
+					}
+				} catch (e) {
+					console.error('WS parse error', e);
+				}
+			};
 		};
 
-		// 2. Game Loop: Pergerakan kata jatuh
-		const gameLoop = setInterval(() => {
-			setWords((prev) => {
-				const updatedWords = prev.map((w) => ({ ...w, y: w.y + 1.5 })); // Sedikit lebih cepat
-
-				// LOGIKA GAME OVER: Cek jika ada kata yang menyentuh batas bawah
-				if (updatedWords.some((w) => w.y >= 460)) {
-					setGameState('gameover');
-					return updatedWords;
-				}
-
-				return updatedWords;
-			});
-		}, 30);
-
-		// 3. Spawner: Munculkan kata baru secara berkala
-		const spawner = setInterval(() => {
-			const wordList = [
-				'pnpm',
-				'socket',
-				'udp',
-				'nextjs',
-				'python',
-				'uv',
-				'brutalist',
-				'fastapi',
-				'relay',
-				'async'
-			];
-			const newWord: FallingWord = {
-				id: Math.random().toString(),
-				text: wordList[Math.floor(Math.random() * wordList.length)],
-				x: Math.random() * 80 + 10,
-				y: 0
-			};
-			setWords((prev) => [...prev, newWord]);
-		}, 2000);
+		connect();
 
 		return () => {
 			socketRef.current?.close();
+		};
+	}, []);
+
+	useEffect(() => {
+		if (gameState !== 'playing') return;
+
+		setTimeout(() => inputRef.current?.focus(), 100);
+
+		const gameLoop = setInterval(() => {
+			setWords((prev) => {
+				const updated = prev.map((w) => ({ ...w, y: w.y + 1.5 }));
+				if (updated.some((w) => w.y >= 460)) {
+					setGameState('gameover');
+					return updated;
+				}
+
+				if (score >= 500) {
+					setGameState('win');
+					return updated;
+				}
+				return updated;
+			});
+		}, 30);
+
+		const spawner = setInterval(() => {
+			setWords((prev) => [
+				...prev,
+				{
+					id: Math.random().toString(),
+					text: WORD_LIST[Math.floor(Math.random() * WORD_LIST.length)],
+					x: Math.random() * 70 + 15,
+					y: 0
+				}
+			]);
+		}, 2000);
+
+		return () => {
 			clearInterval(gameLoop);
 			clearInterval(spawner);
 		};
-	}, [gameState]); // Restart effect saat gameState berubah
+	}, [gameState]);
 
-	const destroyWord = (wordText: string) => {
-		setWords((prev) => {
-			const exists = prev.some((w) => w.text === wordText);
-			if (exists) {
-				setScore((s) => s + 100);
-				return prev.filter((w) => w.text !== wordText);
-			}
-			return prev;
-		});
+	useEffect(() => {
+		if (gameState === 'gameover' && username) {
+			sendWs(`${username}:__END__`);
+		}
+	}, [gameState]);
+
+	const sendWs = (message: string) => {
+		if (socketRef.current?.readyState === WebSocket.OPEN) {
+			socketRef.current.send(message);
+		}
 	};
 
 	const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-		if (gameState === 'gameover') return;
+		if (gameState !== 'playing') return;
 		const value = e.target.value.toLowerCase();
 		setUserInput(value);
 
 		const matchedWord = words.find((w) => w.text === value);
 		if (matchedWord) {
-			destroyWord(value);
+			sendWs(`${username}:${value}`);
 			setUserInput('');
 		}
 	};
 
-	const resetGame = () => {
+	const handleStart = () => {
+		if (!usernameInput.trim() || status !== 'connected') return;
+		setUsername(usernameInput.trim());
 		setWords([]);
 		setScore(0);
 		setUserInput('');
 		setGameState('playing');
 	};
 
+	const handleStartPause = () => {
+		if (gameState === 'paused') setGameState('playing');
+		else if (gameState === 'playing') setGameState('paused');
+	};
+
+	const resetGame = () => {
+		setWords([]);
+		setScore(0);
+		setUserInput('');
+		setUsername('');
+		setUsernameInput('');
+		setGameState('idle');
+	};
+
+	const getButtonLabel = () => {
+		if (gameState === 'playing') return '⏸ Pause';
+		if (gameState === 'paused') return '▶ Resume';
+		return '▶ Start';
+	};
+
+	const getStatusStyle = () => {
+		if (status === 'connected') return 'bg-[#23a094]';
+		if (status === 'connecting') return 'bg-[#ffc900] text-black';
+		return 'bg-red-600';
+	};
+
+	const getStatusLabel = () => {
+		if (status === 'connected') return 'WS: CONNECTED';
+		if (status === 'connecting') return 'WS: CONNECTING...';
+		return 'WS: OFFLINE';
+	};
+
 	return (
 		<div className="w-full max-w-4xl mx-auto my-12 relative">
 			<div className="bg-white border-4 border-black shadow-[12px_12px_0px_0px_#000] flex flex-col overflow-hidden">
-				{/* WINDOW HEADER */}
 				<div className="bg-black text-white px-4 py-3 flex justify-between items-center border-b-4 border-black">
 					<div className="flex gap-2">
 						<div className="w-3 h-3 rounded-full bg-[#ff4b4b] border-2 border-white"></div>
@@ -123,32 +245,89 @@ export function DefenseZone() {
 						<div className="w-3 h-3 rounded-full bg-[#23a094] border-2 border-white"></div>
 					</div>
 					<span className="font-head text-xs uppercase tracking-[0.2em]">Visual-Relay-System.v1</span>
-					<div
-						className={`px-2 py-0.5 text-[10px] font-bold border-2 border-white ${status === 'connected' ? 'bg-[#23a094]' : 'bg-red-600'}`}
-					>
-						{status === 'connected' ? 'WS: CONNECTED' : 'WS: OFFLINE'}
+					<div className={`px-2 py-0.5 text-[10px] font-bold border-2 border-white ${getStatusStyle()}`}>
+						{getStatusLabel()}
 					</div>
 				</div>
 
-				{/* STATS BAR */}
 				<div className="flex border-b-4 border-black font-bold uppercase text-sm">
 					<div className="flex-1 p-3 bg-[#ffc900] border-r-4 border-black text-center">
 						Score: {score.toLocaleString()}
 					</div>
-					<div className="flex-1 p-3 bg-white text-center">Threats: {words.length}</div>
+					<div className="flex-1 p-3 bg-white border-r-4 border-black text-center">
+						Threats: {words.length}
+					</div>
+					<div className="flex-1 p-3 bg-white text-center truncate">{username ? `▶ ${username}` : '— —'}</div>
 				</div>
 
-				{/* BATTLEFIELD AREA */}
-				<div className="relative h-[500px] bg-[#e5e5e5] bg-[radial-gradient(#00000022_1.5px,transparent_1.5px)] bg-[size:24px_24px] overflow-hidden">
-					{/* OVERLAY GAME OVER */}
+				<div
+					className={`relative h-[500px] bg-[#e5e5e5] bg-[radial-gradient(#00000022_1.5px,transparent_1.5px)] bg-[size:24px_24px] overflow-hidden transition-colors duration-150 ${invalidFlash ? 'bg-red-100' : ''}`}
+				>
+					{gameState === 'idle' && (
+						<div className="absolute inset-0 z-50 bg-black/85 flex flex-col items-center justify-center p-6 text-center gap-6">
+							<h2 className="font-head text-5xl text-white uppercase border-4 border-[#ffc900] px-6 py-2 shadow-[8px_8px_0px_0px_#ffc900]">
+								Defense Zone
+							</h2>
+							<p className="text-neutral-300 font-bold text-sm uppercase tracking-widest">
+								Type the falling words before they breach the perimeter
+							</p>
+							<div className="flex flex-col gap-2 w-full max-w-xs">
+								<label className="font-head text-xs text-[#ffc900] uppercase tracking-widest text-left">
+									Enter Codename:
+								</label>
+								<input
+									type="text"
+									value={usernameInput}
+									onChange={(e) => setUsernameInput(e.target.value)}
+									onKeyDown={(e) => e.key === 'Enter' && handleStart()}
+									placeholder="e.g. ghost_operator"
+									className="bg-white border-4 border-white px-4 py-3 font-mono font-bold text-lg focus:outline-none shadow-[4px_4px_0px_0px_#ffc900] placeholder:text-neutral-300"
+									autoFocus
+								/>
+							</div>
+
+							{status !== 'connected' && (
+								<p className="text-[#ffc900] font-mono text-xs uppercase animate-pulse">
+									{status === 'connecting'
+										? '⏳ Waiting for server connection...'
+										: '❌ Server offline — start server first'}
+								</p>
+							)}
+
+							<button
+								onClick={handleStart}
+								disabled={!usernameInput.trim() || status !== 'connected'}
+								className="bg-[#ffc900] border-4 border-white px-10 py-3 font-head uppercase text-black hover:bg-yellow-400 transition-all shadow-[6px_6px_0px_0px_#fff] active:translate-x-1 active:translate-y-1 active:shadow-none disabled:opacity-40 disabled:cursor-not-allowed"
+							>
+								{status !== 'connected' ? '⏳ Waiting for Server...' : '▶ Start Mission'}
+							</button>
+						</div>
+					)}
+
+					{gameState === 'paused' && (
+						<div className="absolute inset-0 z-50 bg-black/75 flex flex-col items-center justify-center p-6 text-center gap-4">
+							<h2 className="font-head text-5xl text-white uppercase border-4 border-[#ffc900] px-6 py-2 shadow-[8px_8px_0px_0px_#ffc900]">
+								Paused
+							</h2>
+							<p className="text-neutral-300 font-bold text-sm uppercase tracking-widest">
+								System Suspended — Press Resume to continue
+							</p>
+						</div>
+					)}
+
 					{gameState === 'gameover' && (
-						<div className="absolute inset-0 z-50 bg-red-600/90 flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
-							<h2 className="font-head text-6xl text-white uppercase mb-4 border-4 border-white px-6 py-2 shadow-[8px_8px_0px_0px_#000]">
+						<div className="absolute inset-0 z-50 bg-red-600/90 flex flex-col items-center justify-center p-6 text-center gap-6 animate-in fade-in duration-300">
+							<h2 className="font-head text-6xl text-white uppercase border-4 border-white px-6 py-2 shadow-[8px_8px_0px_0px_#000]">
 								Terminal Breached
 							</h2>
-							<p className="text-white font-bold text-xl mb-8 uppercase tracking-widest bg-black px-4 py-1">
-								Final Score: {score}
-							</p>
+							<div className="bg-black px-6 py-3 flex flex-col gap-1">
+								<p className="text-white font-bold text-xl uppercase tracking-widest">
+									{username} — Final Score: {score}
+								</p>
+								<p className="text-neutral-400 font-mono text-xs uppercase">
+									Session log saved to defense_log.txt
+								</p>
+							</div>
 							<button
 								onClick={resetGame}
 								className="bg-white border-4 border-black px-8 py-3 font-head uppercase hover:bg-black hover:text-white transition-all shadow-[6px_6px_0px_0px_#000] active:translate-x-1 active:translate-y-1 active:shadow-none"
@@ -158,7 +337,6 @@ export function DefenseZone() {
 						</div>
 					)}
 
-					{/* FALLING WORDS */}
 					{words.map((word) => (
 						<div
 							key={word.id}
@@ -176,7 +354,6 @@ export function DefenseZone() {
 						</div>
 					))}
 
-					{/* DANGER PERIMETER */}
 					<div className="absolute bottom-0 w-full h-12 bg-black border-t-4 border-black flex items-center justify-center overflow-hidden">
 						<div className="absolute inset-0 bg-[repeating-linear-gradient(45deg,#ff0000,#ff0000_10px,#000_10px,#000_20px)] opacity-30"></div>
 						<span className="relative font-head text-white text-xs tracking-widest animate-pulse">
@@ -185,23 +362,51 @@ export function DefenseZone() {
 					</div>
 				</div>
 
-				{/* KEYBOARD INPUT SECTION */}
 				<div className="p-6 bg-[#f4f4f0] border-t-4 border-black flex flex-col gap-4">
 					<label className="font-head text-sm uppercase">Manual Override Terminal:</label>
 					<div className="relative">
 						<input
+							ref={inputRef}
 							type="text"
-							disabled={gameState === 'gameover'}
+							disabled={gameState !== 'playing'}
 							value={userInput}
 							onChange={handleInputChange}
-							placeholder={gameState === 'gameover' ? 'SYSTEM FAILED' : 'Type matching words here...'}
-							className="w-full bg-white border-4 border-black p-4 font-mono font-bold text-lg focus:outline-none shadow-[4px_4px_0px_0px_#000] focus:shadow-none focus:translate-x-1 focus:translate-y-1 transition-all placeholder:text-neutral-300 disabled:bg-neutral-200 disabled:cursor-not-allowed"
-							autoFocus
+							placeholder={
+								gameState === 'gameover'
+									? 'SYSTEM FAILED'
+									: gameState === 'idle'
+										? 'Enter codename to begin...'
+										: gameState === 'paused'
+											? 'PAUSED — Resume to continue...'
+											: 'Type matching words here...'
+							}
+							className={`w-full bg-white border-4 p-4 font-mono font-bold text-lg focus:outline-none shadow-[4px_4px_0px_0px_#000] focus:shadow-none focus:translate-x-1 focus:translate-y-1 transition-all placeholder:text-neutral-300 disabled:bg-neutral-200 disabled:cursor-not-allowed ${invalidFlash ? 'border-red-500' : 'border-black'}`}
 						/>
 					</div>
-					<div className="flex justify-between items-center text-[10px] font-bold text-neutral-500 uppercase">
-						<span>Protocol: UDP/WS Relay[cite: 1]</span>
-						<span>Status: {gameState === 'playing' ? 'Operational' : 'Critical Failure'}</span>
+					<div className="flex justify-between items-center">
+						<div className="flex flex-col gap-1">
+							<span className="text-[10px] font-bold text-neutral-500 uppercase">
+								Protocol: WS Relay + Server Validation
+							</span>
+							<span className="text-[10px] font-bold text-neutral-500 uppercase">
+								Status:{' '}
+								{gameState === 'playing'
+									? 'Operational'
+									: gameState === 'paused'
+										? 'Suspended'
+										: gameState === 'gameover'
+											? 'Critical Failure'
+											: 'Standby'}
+							</span>
+						</div>
+						{gameState !== 'gameover' && gameState !== 'idle' && (
+							<button
+								onClick={handleStartPause}
+								className="bg-black text-white border-4 border-black px-8 py-3 font-head uppercase hover:bg-neutral-800 transition-all shadow-[6px_6px_0px_0px_#555] active:translate-x-1 active:translate-y-1 active:shadow-none"
+							>
+								{getButtonLabel()}
+							</button>
+						)}
 					</div>
 				</div>
 			</div>
