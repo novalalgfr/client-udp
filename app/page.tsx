@@ -11,23 +11,17 @@ export default function LandingPage() {
 				<nav className="sticky top-0 w-full bg-white border-b-4 border-black px-6 py-4 flex items-center justify-between z-999">
 					<div className="flex items-center gap-2">
 						<div className="w-6 h-6 bg-[#ffc900] border-2 border-black shadow-[2px_2px_0px_0px_#000]"></div>
-						<span className="font-head text-2xl uppercase tracking-tighter">RetroUI</span>
+						<span className="font-head text-2xl uppercase tracking-tighter">Defense Zone</span>
 					</div>
-					<div className="hidden md:flex items-center gap-8 font-bold text-sm uppercase">
-						<Link
-							href="#"
-							className="hover:underline decoration-4 underline-offset-4 decoration-[#ff90e8]"
+					<Button className="bg-black text-white border-2 border-black shadow-sm font-bold px-4 py-2">
+						<a
+							href="https://github.com/novalalgfr"
+							target="_blank"
+							rel="noopener noreferrer"
 						>
-							Type Defense
-						</Link>
-						<Link
-							href="#"
-							className="hover:underline decoration-4 underline-offset-4 decoration-[#c4a1ff]"
-						>
-							Docs
-						</Link>
-					</div>
-					<Button className="bg-black text-white border-2 border-black shadow-sm font-bold">GITHUB</Button>
+							GITHUB
+						</a>
+					</Button>
 				</nav>
 
 				<main className="flex-1 flex flex-col items-center px-4 pt-24 pb-12 text-center max-w-6xl mx-auto">
