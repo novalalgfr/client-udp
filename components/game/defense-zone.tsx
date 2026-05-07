@@ -1,68 +1,14 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-
-interface FallingWord {
-	id: string;
-	text: string;
-	x: number;
-	y: number;
-}
-
-const WORD_LIST = [
-	'attack',
-	'defense',
-	'shield',
-	'system',
-	'network',
-	'packet',
-	'server',
-	'client',
-	'protocol',
-	'latency',
-	'socket',
-	'signal',
-	'router',
-	'gateway',
-	'firewall',
-	'encrypt',
-	'decrypt',
-	'access',
-	'control',
-	'process',
-	'thread',
-	'buffer',
-	'memory',
-	'kernel',
-	'runtime',
-	'compile',
-	'execute',
-	'deploy',
-	'monitor',
-	'status',
-	'request',
-	'response',
-	'connect',
-	'disconnect',
-	'timeout',
-	'secure',
-	'threat',
-	'breach',
-	'alert',
-	'warning',
-	'critical',
-	'failure',
-	'backup',
-	'restore',
-	'sync',
-	'async',
-	'stream',
-	'queue',
-	'relay',
-	'cluster'
-];
-
-const WIN_SCORE = 1000;
+import React, { useState, useEffect } from 'react';
+import { FallingWord, GameState } from './types';
+import { WIN_SCORE } from './constants';
+import { useWebSocket } from './hooks/use-websocket';
+import { useGameLoop } from './hooks/use-game-loop';
+import { OverlayIdle } from './overlays/overlay-idle';
+import { OverlayPaused } from './overlays/overlay-paused';
+import { OverlayGameOver } from './overlays/overlay-gameover';
+import { OverlayWin } from './overlays/overlay-win';
 
 export function DefenseZone() {
 	const [words, setWords] = useState<FallingWord[]>([]);
@@ -70,67 +16,27 @@ export function DefenseZone() {
 	const [score, setScore] = useState(0);
 	const [username, setUsername] = useState('');
 	const [usernameInput, setUsernameInput] = useState('');
-	const [status, setStatus] = useState<'connected' | 'disconnected' | 'connecting'>('connecting');
-	const [gameState, setGameState] = useState<'idle' | 'playing' | 'paused' | 'gameover' | 'win'>('idle');
+	const [gameState, setGameState] = useState<GameState>('idle');
 	const [invalidFlash, setInvalidFlash] = useState(false);
 
-	const socketRef = useRef<WebSocket | null>(null);
-	const wsReadyRef = useRef(false);
-	const inputRef = useRef<HTMLInputElement>(null);
-
-	useEffect(() => {
-		const connect = () => {
-			setStatus('connecting');
-			const ws = new WebSocket(process.env.NEXT_PUBLIC_WS_URL ?? 'ws://localhost:8000');
-			socketRef.current = ws;
-
-			ws.onopen = () => {
-				setStatus('connected');
-				wsReadyRef.current = true;
-			};
-
-			ws.onclose = () => {
-				setStatus('disconnected');
-				wsReadyRef.current = false;
-				setTimeout(connect, 3000);
-			};
-
-			ws.onerror = () => {
-				setStatus('disconnected');
-				wsReadyRef.current = false;
-			};
-
-			ws.onmessage = (event) => {
-				try {
-					const data = JSON.parse(event.data);
-
-					if (data.type === 'WORD_VALID') {
-						setWords((prev) => {
-							const exists = prev.some((w) => w.text === data.word);
-							if (exists) {
-								setScore((s) => s + 100);
-								return prev.filter((w) => w.text !== data.word);
-							}
-							return prev;
-						});
-					}
-
-					if (data.type === 'WORD_INVALID') {
-						setInvalidFlash(true);
-						setTimeout(() => setInvalidFlash(false), 400);
-					}
-				} catch (e) {
-					console.error('WS parse error', e);
+	const { status, sendWs } = useWebSocket({
+		onWordValid: (word) => {
+			setWords((prev) => {
+				const exists = prev.some((w) => w.text === word);
+				if (exists) {
+					setScore((s) => s + 100);
+					return prev.filter((w) => w.text !== word);
 				}
-			};
-		};
+				return prev;
+			});
+		},
+		onWordInvalid: () => {
+			setInvalidFlash(true);
+			setTimeout(() => setInvalidFlash(false), 400);
+		}
+	});
 
-		connect();
-
-		return () => {
-			socketRef.current?.close();
-		};
-	}, []);
+	const { inputRef } = useGameLoop({ gameState, setWords, setGameState });
 
 	useEffect(() => {
 		if (gameState !== 'playing') return;
@@ -141,56 +47,15 @@ export function DefenseZone() {
 	}, [score, gameState]);
 
 	useEffect(() => {
-		if (gameState !== 'playing') return;
-
-		setTimeout(() => inputRef.current?.focus(), 100);
-
-		const gameLoop = setInterval(() => {
-			setWords((prev) => {
-				const updated = prev.map((w) => ({ ...w, y: w.y + 1.5 }));
-				if (updated.some((w) => w.y >= 460)) {
-					setGameState('gameover');
-					return updated;
-				}
-				return updated;
-			});
-		}, 30);
-
-		const spawner = setInterval(() => {
-			setWords((prev) => [
-				...prev,
-				{
-					id: Math.random().toString(),
-					text: WORD_LIST[Math.floor(Math.random() * WORD_LIST.length)],
-					x: Math.random() * 70 + 15,
-					y: 0
-				}
-			]);
-		}, 2000);
-
-		return () => {
-			clearInterval(gameLoop);
-			clearInterval(spawner);
-		};
-	}, [gameState]);
-
-	useEffect(() => {
 		if (gameState === 'gameover' && username) {
 			sendWs(`${username}:__END__`);
 		}
 	}, [gameState]);
 
-	const sendWs = (message: string) => {
-		if (socketRef.current?.readyState === WebSocket.OPEN) {
-			socketRef.current.send(message);
-		}
-	};
-
 	const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		if (gameState !== 'playing') return;
 		const value = e.target.value.toLowerCase();
 		setUserInput(value);
-
 		const matchedWord = words.find((w) => w.text === value);
 		if (matchedWord) {
 			sendWs(`${username}:${value}`);
@@ -219,12 +84,6 @@ export function DefenseZone() {
 		setUsername('');
 		setUsernameInput('');
 		setGameState('idle');
-	};
-
-	const getButtonLabel = () => {
-		if (gameState === 'playing') return '⏸ Pause';
-		if (gameState === 'paused') return '▶ Resume';
-		return '▶ Start';
 	};
 
 	const getStatusStyle = () => {
@@ -268,128 +127,34 @@ export function DefenseZone() {
 					className={`relative h-[500px] bg-[#e5e5e5] bg-[radial-gradient(#00000022_1.5px,transparent_1.5px)] bg-[size:24px_24px] overflow-hidden transition-colors duration-150 ${invalidFlash ? 'bg-red-100' : ''}`}
 				>
 					{gameState === 'idle' && (
-						<div className="absolute inset-0 z-50 bg-black/85 flex flex-col items-center justify-center p-6 text-center gap-6">
-							<h2 className="font-head text-5xl text-white uppercase border-4 border-[#ffc900] px-6 py-2 shadow-[8px_8px_0px_0px_#ffc900]">
-								Defense Zone
-							</h2>
-							<p className="text-neutral-300 font-bold text-sm uppercase tracking-widest">
-								Type the falling words before they breach the perimeter
-							</p>
-							<p className="text-neutral-400 font-mono text-xs uppercase">
-								Reach {WIN_SCORE} points to win the mission
-							</p>
-							<div className="flex flex-col gap-2 w-full max-w-xs">
-								<label className="font-head text-xs text-[#ffc900] uppercase tracking-widest text-left">
-									Enter Codename:
-								</label>
-								<input
-									type="text"
-									value={usernameInput}
-									onChange={(e) => setUsernameInput(e.target.value)}
-									onKeyDown={(e) => e.key === 'Enter' && handleStart()}
-									placeholder="e.g. ghost_operator"
-									className="bg-white border-4 border-white px-4 py-3 font-mono font-bold text-lg focus:outline-none shadow-[4px_4px_0px_0px_#ffc900] placeholder:text-neutral-300"
-									autoFocus
-								/>
-							</div>
-
-							{status !== 'connected' && (
-								<p className="text-[#ffc900] font-mono text-xs uppercase animate-pulse">
-									{status === 'connecting'
-										? '⏳ Waiting for server connection...'
-										: '❌ Server offline — start server first'}
-								</p>
-							)}
-
-							<button
-								onClick={handleStart}
-								disabled={!usernameInput.trim() || status !== 'connected'}
-								className="bg-[#ffc900] border-4 border-black px-10 py-3 font-head uppercase text-black hover:bg-yellow-400 transition-all shadow-[6px_6px_0px_0px_#000] active:translate-x-1 active:translate-y-1 active:shadow-none disabled:opacity-40 disabled:cursor-not-allowed"
-							>
-								{status !== 'connected' ? '⏳ Waiting for Server...' : '▶ Start Mission'}
-							</button>
-						</div>
+						<OverlayIdle
+							usernameInput={usernameInput}
+							setUsernameInput={setUsernameInput}
+							status={status}
+							onStart={handleStart}
+						/>
 					)}
-
-					{gameState === 'paused' && (
-						<div className="absolute inset-0 z-50 bg-black/75 flex flex-col items-center justify-center p-6 text-center gap-4">
-							<h2 className="font-head text-5xl text-white uppercase border-4 border-[#ffc900] px-6 py-2 shadow-[8px_8px_0px_0px_#ffc900]">
-								Paused
-							</h2>
-							<p className="text-neutral-300 font-bold text-sm uppercase tracking-widest">
-								System Suspended — Press Resume to continue
-							</p>
-						</div>
-					)}
-
+					{gameState === 'paused' && <OverlayPaused />}
 					{gameState === 'gameover' && (
-						<div className="absolute inset-0 z-50 bg-red-600/90 flex flex-col items-center justify-center p-6 text-center gap-6 animate-in fade-in duration-300">
-							<h2 className="font-head text-6xl text-white uppercase border-4 border-white px-6 py-2 shadow-[8px_8px_0px_0px_#000]">
-								Terminal Breached
-							</h2>
-							<div className="bg-black px-6 py-3 flex flex-col gap-1">
-								<p className="text-white font-bold text-xl uppercase tracking-widest">
-									{username} — Final Score: {score}
-								</p>
-								<p className="text-neutral-400 font-mono text-xs uppercase">
-									Session log saved to defense_log.txt
-								</p>
-							</div>
-							<button
-								onClick={resetGame}
-								className="bg-white border-4 border-black px-8 py-3 font-head uppercase hover:bg-black hover:text-white transition-all shadow-[6px_6px_0px_0px_#000] active:translate-x-1 active:translate-y-1 active:shadow-none"
-							>
-								Reboot System
-							</button>
-						</div>
+						<OverlayGameOver
+							username={username}
+							score={score}
+							onReset={resetGame}
+						/>
 					)}
-
 					{gameState === 'win' && (
-						<div className="absolute inset-0 z-50 bg-[#23a094]/95 flex flex-col items-center justify-center p-6 text-center gap-6 animate-in fade-in duration-300">
-							<div className="flex flex-col items-center gap-2">
-								<span className="font-mono text-white text-xs uppercase tracking-[0.3em] animate-pulse">
-									— Mission Complete —
-								</span>
-								<h2 className="font-head text-6xl text-white uppercase border-4 border-white px-6 py-2 shadow-[8px_8px_0px_0px_#000]">
-									Perimeter Secured
-								</h2>
-							</div>
-							<div className="bg-black px-6 py-4 flex flex-col gap-2 border-4 border-white shadow-[6px_6px_0px_0px_#fff]">
-								<p className="text-[#23a094] font-head text-2xl uppercase tracking-widest">
-									{username}
-								</p>
-								<p className="text-white font-bold text-3xl uppercase">
-									Score: {score.toLocaleString()}
-								</p>
-								<p className="text-neutral-400 font-mono text-xs uppercase">
-									All threats neutralized — system stable
-								</p>
-							</div>
-							<div className="flex gap-4">
-								<button
-									onClick={handleStart}
-									className="bg-[#ffc900] border-4 border-black px-8 py-3 font-head uppercase text-black hover:bg-yellow-400 transition-all shadow-[6px_6px_0px_0px_#000] active:translate-x-1 active:translate-y-1 active:shadow-none"
-								>
-									▶ Play Again
-								</button>
-								<button
-									onClick={resetGame}
-									className="bg-white border-4 border-black px-8 py-3 font-head uppercase hover:bg-black hover:text-white transition-all shadow-[6px_6px_0px_0px_#000] active:translate-x-1 active:translate-y-1 active:shadow-none"
-								>
-									Main Menu
-								</button>
-							</div>
-						</div>
+						<OverlayWin
+							username={username}
+							score={score}
+							onPlayAgain={handleStart}
+							onReset={resetGame}
+						/>
 					)}
 
 					{words.map((word) => (
 						<div
 							key={word.id}
-							style={{
-								left: `${word.x}%`,
-								top: `${word.y}px`,
-								transition: 'top 0.03s linear'
-							}}
+							style={{ left: `${word.x}%`, top: `${word.y}px`, transition: 'top 0.03s linear' }}
 							className="absolute -translate-x-1/2"
 						>
 							<div className="bg-white border-4 border-black px-4 py-1.5 shadow-[4px_4px_0px_0px_#000] relative">
@@ -451,9 +216,9 @@ export function DefenseZone() {
 						{gameState !== 'gameover' && gameState !== 'idle' && gameState !== 'win' && (
 							<button
 								onClick={handleStartPause}
-								className="bg-black text-white border-4 border-black px-8 py-3 font-head uppercase hover:bg-neutral-800 transition-all shadow-[6px_6px_0px_0px_#555] active:translate-x-1 active:translate-y-1 active:shadow-none"
+								className="bg-black text-white border-4 border-black px-8 py-3 font-head uppercase hover:bg-neutral-800 transition-all shadow-[6px_6px_0px_0px_#555] active:translate-x-1 active:translate-y-1 active:shadow-none cursor-pointer"
 							>
-								{getButtonLabel()}
+								{gameState === 'playing' ? '⏸ Pause' : '▶ Resume'}
 							</button>
 						)}
 					</div>
