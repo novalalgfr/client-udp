@@ -7,7 +7,7 @@ interface Props {
 export function OverlayGameOver({ username, score, onReset }: Props) {
 	return (
 		<div className="absolute inset-0 z-50 bg-red-600/90 flex flex-col items-center justify-center p-6 text-center gap-6 animate-in fade-in duration-300">
-			<h2 className="font-head text-6xl text-white uppercase border-4 border-white px-6 py-2 shadow-[8px_8px_0px_0px_#000]">
+			<h2 className="font-head text-4xl md:text-6xl text-white uppercase border-4 border-white px-4 md:px-6 py-2 shadow-[8px_8px_0px_0px_#000]">
 				Terminal Breached
 			</h2>
 			<div className="bg-black px-6 py-3 flex flex-col gap-1">

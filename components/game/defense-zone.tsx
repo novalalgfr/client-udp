@@ -113,18 +113,24 @@ export function DefenseZone() {
 					</div>
 				</div>
 
-				<div className="flex border-b-4 border-black font-bold uppercase text-sm">
-					<div className="flex-1 p-3 bg-[#ffc900] border-r-4 border-black text-center">
-						Score: {score.toLocaleString()} / {WIN_SCORE}
+				<div className="flex border-b-4 border-black font-bold uppercase text-xs md:text-sm">
+					<div className="flex-1 p-2 md:p-3 bg-[#ffc900] border-r-4 border-black text-center">
+						<span className="hidden md:inline">Score: </span>
+						{score.toLocaleString()}
+						<span className="text-[10px] md:hidden"> / {WIN_SCORE}</span>
+						<span className="hidden md:inline"> / {WIN_SCORE}</span>
 					</div>
-					<div className="flex-1 p-3 bg-white border-r-4 border-black text-center">
-						Threats: {words.length}
+					<div className="flex-1 p-2 md:p-3 bg-white border-r-4 border-black text-center">
+						<span className="hidden md:inline">Threats: </span>
+						{words.length}
 					</div>
-					<div className="flex-1 p-3 bg-white text-center truncate">{username ? `▶ ${username}` : '— —'}</div>
+					<div className="flex-1 p-2 md:p-3 bg-white text-center truncate">
+						{username ? `▶ ${username}` : '— —'}
+					</div>
 				</div>
 
 				<div
-					className={`relative h-[500px] bg-[#e5e5e5] bg-[radial-gradient(#00000022_1.5px,transparent_1.5px)] bg-[size:24px_24px] overflow-hidden transition-colors duration-150 ${invalidFlash ? 'bg-red-100' : ''}`}
+					className={`relative h-[380px] md:h-[500px] bg-[#e5e5e5] bg-[radial-gradient(#00000022_1.5px,transparent_1.5px)] bg-[size:24px_24px] overflow-hidden transition-colors duration-150 ${invalidFlash ? 'bg-red-100' : ''}`}
 				>
 					{gameState === 'idle' && (
 						<OverlayIdle
@@ -172,7 +178,7 @@ export function DefenseZone() {
 					</div>
 				</div>
 
-				<div className="p-6 bg-[#f4f4f0] border-t-4 border-black flex flex-col gap-4">
+				<div className="p-4 md:p-6 bg-[#f4f4f0] border-t-4 border-black flex flex-col gap-3 md:gap-4">
 					<label className="font-head text-sm uppercase">Manual Override Terminal:</label>
 					<div className="relative">
 						<input
